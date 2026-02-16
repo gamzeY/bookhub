@@ -34,6 +34,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 static IResult ValidationProblem(ValidationResult result)
 {
     var errors = result.Errors
@@ -142,6 +145,8 @@ app.MapDelete("/api/books/{id:guid}", (InMemoryBookStore store, Guid id) =>
     var deleted = store.Delete(id);
     return deleted ? Results.NoContent() : Results.NotFound(new { message = "Book not found." });
 });
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
 
