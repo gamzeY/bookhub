@@ -15,7 +15,7 @@
         prepend-icon="mdi-plus"
         elevation="0"
         height="40"
-        @click="addDialog = true"
+        @click="openAdd()"
       >
         Add Book
       </v-btn>
@@ -36,10 +36,12 @@
         rounded="lg"
       />
 
-      <div class="d-flex align-center gap-2" style="width: auto; min-width: 200px;">
+      <div class="d-flex align-center gap-2" style="width: auto; min-width: 260px;">
         <v-select
           v-model="sort"
           :items="sortItems"
+          item-title="title"
+          item-value="value"
           variant="solo"
           density="compact"
           hide-details
@@ -49,53 +51,148 @@
           class="sort-select"
           menu-icon="mdi-chevron-down"
         />
-        
-        <v-btn icon variant="tonal" rounded="lg" color="grey-darken-1" class="bg-white ml-2">
+
+        <v-btn icon variant="tonal" rounded="lg" color="grey-darken-1" class="bg-white ml-2" disabled>
           <v-icon>mdi-view-grid-outline</v-icon>
         </v-btn>
-        
+
         <v-btn icon variant="flat" rounded="lg" color="#5C6BC0" class="ml-2">
           <v-icon color="white">mdi-format-list-bulleted</v-icon>
         </v-btn>
       </div>
     </div>
 
+    <!-- Errors -->
+    <v-alert v-if="store.error" type="error" variant="tonal" class="mb-4">
+      {{ store.error }}
+    </v-alert>
+
     <!-- List Header / Count -->
     <div class="text-caption text-medium-emphasis mb-4">
-      {{ filtered.length }} of {{ books.length }} books
+      {{ store.totalCount }} books found
     </div>
 
     <!-- List -->
     <div>
-      <BookListItem
-        v-for="b in paged"
-        :key="b.id"
-        :book="b"
-        @view="onView"
-        @edit="onEdit"
-        @delete="onDelete"
-      />
+      <div v-if="store.loading" class="d-flex justify-center pa-6">
+        <v-progress-circular indeterminate color="primary" />
+      </div>
+
+      <template v-else>
+        <BookListItem
+          v-for="b in store.items"
+          :key="b.id"
+          :book="b"
+          @view="onView"
+          @edit="onEdit"
+          @delete="onDelete"
+        />
+
+        <div v-if="store.items.length === 0" class="text-center pa-6 text-medium-emphasis">
+          No books found. Add one to get started!
+        </div>
+      </template>
     </div>
 
     <!-- Pagination -->
-    <div class="d-flex justify-end mt-6" v-if="totalPages > 1">
+    <div class="d-flex justify-end mt-6" v-if="store.totalPages > 1">
       <v-pagination
-        v-model="page"
-        :length="totalPages"
+        v-model="store.page"
+        :length="store.totalPages"
         :total-visible="6"
         density="comfortable"
         active-color="#5C6BC0"
       />
     </div>
 
-    <v-dialog v-model="addDialog" max-width="520">
+    <!-- Add Book Modal -->
+    <v-dialog v-model="addDialog" max-width="600" persistent>
       <v-card class="rounded-xl">
-        <v-card-title>Add Book</v-card-title>
-        <v-card-text class="text-body-2 text-medium-emphasis">
-          (Next step) Here we’ll add the real form + API integration.
+        <v-card-title class="text-h6 font-weight-bold pa-4">Add New Book</v-card-title>
+        <v-divider />
+
+        <v-card-text class="pa-4">
+          <v-form ref="addForm" @submit.prevent="submitAdd">
+            <v-row dense>
+              <v-col cols="12">
+                <v-text-field
+                  v-model="newBook.title"
+                  label="Title"
+                  variant="outlined"
+                  density="comfortable"
+                  :rules="titleRules"
+                  required
+                />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field
+                  v-model="newBook.author"
+                  label="Author"
+                  variant="outlined"
+                  density="comfortable"
+                  :rules="authorRules"
+                  required
+                />
+              </v-col>
+
+              <v-col cols="12" md="6">
+                <v-text-field
+                  v-model="newBook.isbn"
+                  label="ISBN"
+                  variant="outlined"
+                  density="comfortable"
+                  :rules="isbnRules"
+                  required
+                />
+              </v-col>
+
+              <v-col cols="12">
+                <div class="text-subtitle-2 mb-1">Rating</div>
+                <v-rating
+                  v-model="newBook.rating"
+                  color="amber-darken-2"
+                  hover
+                  density="compact"
+                />
+                <div class="text-caption text-medium-emphasis mt-1">
+                  (Optional) If you set a rating, comments are required.
+                </div>
+              </v-col>
+
+              <v-col cols="12">
+                <v-textarea
+                  v-model="newBook.comments"
+                  label="Comments"
+                  variant="outlined"
+                  density="comfortable"
+                  rows="3"
+                  :rules="commentsRules"
+                />
+              </v-col>
+
+              <v-col cols="12">
+                <v-text-field
+                  v-model="newBook.coverImageUrl"
+                  label="Cover Image URL (optional)"
+                  variant="outlined"
+                  density="comfortable"
+                  :rules="coverRules"
+                />
+              </v-col>
+            </v-row>
+
+            <div v-if="addError" class="text-error text-caption mt-2">
+              {{ addError }}
+            </div>
+          </v-form>
         </v-card-text>
-        <v-card-actions class="justify-end">
-          <v-btn variant="text" @click="addDialog = false">Close</v-btn>
+
+        <v-card-actions class="pa-4 pt-0 justify-end">
+          <v-btn variant="text" @click="closeAdd()" :disabled="submitting">Cancel</v-btn>
+          <v-btn color="primary" variant="flat" @click="submitAdd" :loading="submitting">
+            Save Book
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -103,60 +200,145 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import BookListItem from "@/components/books/BookListItem.vue";
+import { useBooksStore } from "@/stores/books.store";
+import { createBook } from "@/api/booksApi";
 
-type Book = {
-  id: string;
+const router = useRouter();
+const store = useBooksStore();
+
+const addDialog = ref(false);
+const addForm = ref<any>(null);
+
+const search = ref("");
+const sort = ref("title");
+const sortItems = [{ title: "Sort by Title", value: "title" }];
+
+const submitting = ref(false);
+const addError = ref("");
+
+type NewBook = {
   title: string;
   author: string;
   isbn: string;
-  rating?: number | null;
-  comments?: string | null;
-  coverImageUrl?: string | null;
+  rating: number;
+  comments: string;
+  coverImageUrl: string;
 };
 
-const router = useRouter();
-
-const addDialog = ref(false);
-const search = ref("");
-const sort = ref<"title">("title");
-const sortItems = [{ title: "Sort by Title", value: "title" }];
-
-const page = ref(1);
-const pageSize = 10;
-
-// mock data
-const books = ref<Book[]>([
-  { id: "1", title: "1984", author: "George Orwell", isbn: "978-0451524935", rating: 4.5, comments: "Haunting." },
-  { id: "2", title: "Pride and Prejudice", author: "Jane Austen", isbn: "978-0141439518", rating: 5, comments: "Classic." },
-  { id: "3", title: "The Great Gatsby", author: "F. Scott Fitzgerald", isbn: "978-0743273565", rating: 4.5, comments: "Great read." },
-  { id: "4", title: "The Hobbit", author: "J.R.R. Tolkien", isbn: "978-0547928227", rating: 4.5, comments: "Fun adventure." },
-  { id: "5", title: "To Kill a Mockingbird", author: "Harper Lee", isbn: "978-0061120084", rating: 5, comments: "Powerful." },
-]);
-
-const filtered = computed(() => {
-  const q = search.value.trim().toLowerCase();
-  const list = !q
-    ? books.value
-    : books.value.filter(
-        (b) =>
-          b.title.toLowerCase().includes(q) ||
-          b.author.toLowerCase().includes(q)
-      );
-
-  return [...list].sort((a, b) => a.title.localeCompare(b.title));
+const newBook = ref<NewBook>({
+  title: "",
+  author: "",
+  isbn: "",
+  rating: 0,
+  comments: "",
+  coverImageUrl: "",
 });
 
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(filtered.value.length / pageSize))
+const titleRules = [
+  (v: string) => (!!v && v.trim().length > 0) || "Title is required.",
+  (v: string) => (v?.length ?? 0) <= 120 || "Title must be at most 120 characters.",
+];
+
+const authorRules = [
+  (v: string) => (!!v && v.trim().length > 0) || "Author is required.",
+  (v: string) => (v?.length ?? 0) <= 80 || "Author must be at most 80 characters.",
+];
+
+const isbnRules = [
+  (v: string) => (!!v && v.trim().length > 0) || "ISBN is required.",
+  (v: string) => (v?.length ?? 0) <= 20 || "ISBN must be at most 20 characters.",
+];
+
+const coverRules = [
+  (v: string) => (v?.length ?? 0) <= 300 || "Cover URL must be at most 300 characters.",
+];
+
+const commentsRules = [
+  (v: string) => (v?.length ?? 0) <= 500 || "Comments must be at most 500 characters.",
+  (v: string) => !v || !v.toLowerCase().includes("horrible") || "The word 'horrible' is not allowed.",
+  // rating set => comments required
+  () => (newBook.value.rating === 0 || newBook.value.comments.trim().length > 0) || "Comments are required when rating is provided.",
+];
+
+function resetAddForm() {
+  newBook.value = { title: "", author: "", isbn: "", rating: 0, comments: "", coverImageUrl: "" };
+  addError.value = "";
+  addForm.value?.resetValidation?.();
+}
+
+function openAdd() {
+  resetAddForm();
+  addDialog.value = true;
+}
+
+function closeAdd() {
+  addDialog.value = false;
+}
+
+async function submitAdd() {
+  const res = await addForm.value?.validate?.();
+  if (!res?.valid) return;
+
+  submitting.value = true;
+  addError.value = "";
+
+  try {
+    const payload = {
+      title: newBook.value.title.trim(),
+      author: newBook.value.author.trim(),
+      isbn: newBook.value.isbn.trim(),
+      rating: newBook.value.rating === 0 ? null : newBook.value.rating,
+      comments: newBook.value.rating === 0 ? (newBook.value.comments.trim() || null) : newBook.value.comments.trim(),
+      coverImageUrl: newBook.value.coverImageUrl.trim() || null,
+    };
+
+    await createBook(payload);
+    await store.fetch();
+    closeAdd();
+  } catch (e: any) {
+    const msg =
+      e?.response?.data?.message ??
+      (e?.response?.data?.errors
+        ? Object.values(e.response.data.errors).flat().join(" ")
+        : null) ??
+      "Failed to create book. Please try again.";
+    addError.value = msg;
+  } finally {
+    submitting.value = false;
+  }
+}
+
+// --- Fetch list ---
+onMounted(async () => {
+  search.value = store.search;
+  sort.value = store.sort;
+  await store.fetch();
+});
+
+// Debounced search
+let t: number | undefined;
+watch(search, (v) => {
+  window.clearTimeout(t);
+  t = window.setTimeout(async () => {
+    store.setSearch(v);
+    await store.fetch();
+  }, 300);
+});
+
+watch(sort, async (v) => {
+  store.setSort(v);
+  await store.fetch();
+});
+
+watch(
+  () => store.page,
+  async () => {
+    await store.fetch();
+  }
 );
-
-const paged = computed(() => {
-  const start = (page.value - 1) * pageSize;
-  return filtered.value.slice(start, start + pageSize);
-});
 
 function onView(id: string) {
   router.push(`/books/${id}`);
@@ -172,13 +354,13 @@ function onDelete(id: string) {
 <style scoped>
 .search-input :deep(.v-field) {
   border-radius: 8px;
-  border: 1px solid #E0E0E0;
+  border: 1px solid #e0e0e0;
   box-shadow: none !important;
 }
 
 .sort-select :deep(.v-field) {
   border-radius: 8px;
-  border: 1px solid #E0E0E0;
+  border: 1px solid #e0e0e0;
   box-shadow: none !important;
 }
 </style>
