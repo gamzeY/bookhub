@@ -1,5 +1,5 @@
 <template>
-  <v-card class="mb-3 rounded-lg border-opacity-100" elevation="0" border color="white">
+  <v-card class="mb-3 rounded-lg" elevation="0" border>
     <div class="d-flex align-center pa-4">
       <div class="me-4">
         <v-sheet
@@ -112,6 +112,6 @@ defineEmits<{
 
 <style scoped>
 .v-btn.border {
-  border-color: #E0E0E0 !important;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 </style>

@@ -31,7 +31,6 @@
         density="compact"
         hide-details
         class="flex-grow-1 search-input"
-        bg-color="white"
         flat
         rounded="lg"
       />
@@ -45,14 +44,13 @@
           variant="solo"
           density="compact"
           hide-details
-          bg-color="white"
           flat
           rounded="lg"
           class="sort-select"
           menu-icon="mdi-chevron-down"
         />
 
-        <v-btn icon variant="tonal" rounded="lg" color="grey-darken-1" class="bg-white ml-2" disabled>
+        <v-btn icon variant="tonal" rounded="lg" color="grey-darken-1" class="ml-2" disabled>
           <v-icon>mdi-view-grid-outline</v-icon>
         </v-btn>
 
@@ -378,13 +376,13 @@ function onDelete(id: string) {
 <style scoped>
 .search-input :deep(.v-field) {
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   box-shadow: none !important;
 }
 
 .sort-select :deep(.v-field) {
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   box-shadow: none !important;
 }
 </style>

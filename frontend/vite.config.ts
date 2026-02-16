@@ -14,5 +14,16 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
+  test: {
+    globals: true,
+    environment: "jsdom",
+    css: false,
+    setupFiles: ['./src/test-setup.ts'],
+    server: {
+      deps: {
+        inline: ['vuetify']
+      }
+    }
+  },
   define: { 'process.env': {} }
 })
