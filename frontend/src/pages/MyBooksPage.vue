@@ -196,6 +196,19 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <BookEditDialog
+      v-model="editDialog"
+      :book="selectedBook"
+      @saved="store.fetch()"
+    />
+
+    <DeleteConfirmDialog
+      v-model="deleteDialog"
+      :book="selectedBook"
+      @deleted="store.fetch()"
+    />
+
   </div>
 </template>
 
@@ -205,12 +218,20 @@ import { useRouter } from "vue-router";
 import BookListItem from "@/components/books/BookListItem.vue";
 import { useBooksStore } from "@/stores/books.store";
 import { createBook } from "@/api/booksApi";
+import type { Book } from "@/api/booksApi";
+import BookEditDialog from "@/components/books/BookEditDialog.vue";
+import DeleteConfirmDialog from "@/components/books/DeleteConfirmDialog.vue";
 
 const router = useRouter();
 const store = useBooksStore();
 
 const addDialog = ref(false);
 const addForm = ref<any>(null);
+
+const editDialog = ref(false);
+const deleteDialog = ref(false);
+const selectedBook = ref<Book | null>(null);
+
 
 const search = ref("");
 const sort = ref("title");
@@ -344,10 +365,13 @@ function onView(id: string) {
   router.push(`/books/${id}`);
 }
 function onEdit(id: string) {
-  console.log("edit", id);
+  selectedBook.value = store.items.find((b) => b.id === id) ?? null;
+  editDialog.value = true;
 }
+
 function onDelete(id: string) {
-  console.log("delete", id);
+  selectedBook.value = store.items.find((b) => b.id === id) ?? null;
+  deleteDialog.value = true;
 }
 </script>
 
